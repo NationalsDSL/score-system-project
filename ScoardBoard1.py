@@ -2,6 +2,7 @@
 import html
 import io
 import os
+import time
 
 import pandas as pd
 import streamlit as st
@@ -36,8 +37,38 @@ def load_scores():
     return pd.read_csv(SCORES_FILE)
 
 
+def _safe_to_csv(df, file_path, retries=6, base_delay=0.2):
+    temp_path = f"{file_path}.tmp"
+    last_error = None
+
+    for attempt in range(retries):
+        try:
+            df.to_csv(temp_path, index=False)
+            os.replace(temp_path, file_path)
+            return True
+        except PermissionError as error:
+            last_error = error
+            if os.path.exists(temp_path):
+                try:
+                    os.remove(temp_path)
+                except OSError:
+                    pass
+            time.sleep(base_delay * (attempt + 1))
+        except Exception as error:
+            last_error = error
+            break
+
+    st.error(
+        f"No se pudo guardar `{file_path}` porque esta en uso o bloqueado. "
+        "Cierra el archivo si esta abierto (por ejemplo, en Excel) e intenta de nuevo."
+    )
+    if last_error:
+        st.caption(f"Detalle tecnico: {last_error}")
+    return False
+
+
 def save_scores(df):
-    df.to_csv(SCORES_FILE, index=False)
+    return _safe_to_csv(df, SCORES_FILE)
 
 
 def load_users():
@@ -45,7 +76,7 @@ def load_users():
 
 
 def save_users(df):
-    df.to_csv(USERS_FILE, index=False)
+    return _safe_to_csv(df, USERS_FILE)
 
 
 def load_history():
@@ -67,7 +98,7 @@ def load_history():
 
     history = history[HISTORY_COLUMNS]
     if changed:
-        history.to_csv(HISTORY_FILE, index=False)
+        _safe_to_csv(history, HISTORY_FILE)
     return history
 
 
@@ -127,7 +158,8 @@ def log_points_update(player_name, points_added, total_after):
     trend_note = build_trend_note_from_history(history, player_name)
     history.loc[history.index[-1], "trend_note"] = trend_note
     history["timestamp"] = history["timestamp"].dt.strftime("%Y-%m-%d %H:%M:%S")
-    history.to_csv(HISTORY_FILE, index=False)
+    if not _safe_to_csv(history, HISTORY_FILE):
+        return ""
     return trend_note
 
 
@@ -156,8 +188,7 @@ def create_player_account_if_missing(player_name, default_password):
         columns=["username", "password", "role"]
     )
     users = pd.concat([users, new_user], ignore_index=True)
-    save_users(users)
-    return True
+    return save_users(users)
 
 
 def assign_accounts_to_scoreboard_players(default_password):
@@ -178,7 +209,8 @@ def assign_accounts_to_scoreboard_players(default_password):
         columns=["username", "password", "role"]
     )
     users = pd.concat([users, new_users], ignore_index=True)
-    save_users(users)
+    if not save_users(users):
+        return []
     return missing_players
 
 
@@ -872,127 +904,157 @@ else:
                 key="default_player_password",
             )
 
-            col_left, col_right = st.columns([1.35, 1])
+            admin_tab_ops, admin_tab_reset = st.tabs(["Points & Trends", "Reset Table"])
 
-            with col_left:
-                st.markdown("<p class='section-title'>Fast Points Update</p>", unsafe_allow_html=True)
-                admin_ranking = get_ranking(df)
-                existing_players = admin_ranking["Player"].tolist()
+            with admin_tab_ops:
+                col_left, col_right = st.columns([1.35, 1])
 
-                target_type = st.radio(
-                    "Target",
-                    ["Existing player", "New player"],
-                    horizontal=True,
-                    key="admin_target_type",
-                )
+                with col_left:
+                    st.markdown("<p class='section-title'>Fast Points Update</p>", unsafe_allow_html=True)
+                    admin_ranking = get_ranking(df)
+                    existing_players = admin_ranking["Player"].tolist()
 
-                with st.form("fast_update_points_form"):
-                    if target_type == "Existing player" and existing_players:
-                        selected_player = st.selectbox("Select player", existing_players, key="admin_existing_player")
-                        player_input_value = selected_player
-                    else:
-                        if target_type == "Existing player":
-                            st.info("No hay players existentes. Crea uno nuevo.")
-                        player_input_value = st.text_input("New player name", key="admin_new_player_name")
+                    target_type = st.radio(
+                        "Target",
+                        ["Existing player", "New player"],
+                        horizontal=True,
+                        key="admin_target_type",
+                    )
 
-                    quick_col, custom_col = st.columns(2)
-                    with quick_col:
-                        quick_points = st.select_slider(
-                            "Quick points",
-                            options=[1, 2, 3, 5, 8, 10, 15, 20, 30, 50],
-                            value=5,
-                            key="admin_quick_points",
-                        )
-                    with custom_col:
-                        custom_points = st.number_input(
-                            "Custom points (optional)",
-                            min_value=0,
-                            step=1,
-                            value=0,
-                            key="admin_custom_points",
-                        )
-
-                    points_to_add = int(custom_points) if int(custom_points) > 0 else int(quick_points)
-                    submitted = st.form_submit_button(f"Apply +{points_to_add} points", use_container_width=True)
-
-                if submitted:
-                    clean_player_name = (player_input_value or "").strip()
-                    if clean_player_name == "":
-                        st.warning("Enter a player name.")
-                    else:
-                        if clean_player_name in df["Player"].values:
-                            df.loc[df["Player"] == clean_player_name, "Points"] += points_to_add
+                    with st.form("fast_update_points_form"):
+                        if target_type == "Existing player" and existing_players:
+                            selected_player = st.selectbox("Select player", existing_players, key="admin_existing_player")
+                            player_input_value = selected_player
                         else:
-                            new_row = pd.DataFrame([[clean_player_name, points_to_add]], columns=["Player", "Points"])
-                            df = pd.concat([df, new_row], ignore_index=True)
-                            create_player_account_if_missing(clean_player_name, default_player_password)
+                            if target_type == "Existing player":
+                                st.info("No hay players existentes. Crea uno nuevo.")
+                            player_input_value = st.text_input("New player name", key="admin_new_player_name")
 
-                        total_after = int(
-                            pd.to_numeric(
-                                df.loc[df["Player"] == clean_player_name, "Points"],
-                                errors="coerce",
-                            ).fillna(0).iloc[0]
-                        )
-                        trend_note = log_points_update(clean_player_name, points_to_add, total_after)
-                        save_scores(df)
-                        st.session_state["admin_last_update_message"] = f"{clean_player_name}: {trend_note}"
-                        st.rerun()
-
-                if st.session_state.get("admin_last_update_message"):
-                    st.success(st.session_state.pop("admin_last_update_message"))
-
-            with col_right:
-                st.markdown("<p class='section-title'>Automatizaciones</p>", unsafe_allow_html=True)
-                if st.button("Assign Accounts to Scoreboard Players", use_container_width=True):
-                    created_accounts = assign_accounts_to_scoreboard_players(default_player_password)
-                    if created_accounts:
-                        st.success(f"Accounts created: {', '.join(created_accounts)}")
-                    else:
-                        st.info("All scoreboard players already have an account.")
-
-                render_scoreboard_background_uploader("admin_scoreboard_background_upload")
-
-                st.markdown("<p class='section-title'>Trend Updates</p>", unsafe_allow_html=True)
-                trend_tab_1, trend_tab_2 = st.tabs(["Latest by player", "Recent updates"])
-
-                with trend_tab_1:
-                    latest_by_player = get_latest_trend_by_player(limit=6)
-                    if latest_by_player.empty:
-                        st.info("Aun no hay tendencias por jugador.")
-                    else:
-                        for _, event in latest_by_player.iterrows():
-                            event_time = event["timestamp"].strftime("%b %d, %H:%M")
-                            note = event["trend_note"] if str(event["trend_note"]).strip() else "Sin nota de tendencia."
-                            st.markdown(
-                                f"""
-                                <div class="trend-note-card">
-                                    <div class="trend-note-time">{html.escape(str(event['player']))} · {html.escape(str(event_time))}</div>
-                                    <p class="trend-note-text">{html.escape(str(note))}</p>
-                                </div>
-                                """,
-                                unsafe_allow_html=True,
+                        quick_col, custom_col = st.columns(2)
+                        with quick_col:
+                            quick_points = st.select_slider(
+                                "Quick points",
+                                options=[1, 2, 3, 5, 8, 10, 15, 20, 30, 50],
+                                value=5,
+                                key="admin_quick_points",
+                            )
+                        with custom_col:
+                            custom_points = st.number_input(
+                                "Custom points (optional)",
+                                min_value=0,
+                                step=1,
+                                value=0,
+                                key="admin_custom_points",
                             )
 
-                with trend_tab_2:
-                    recent_history = get_clean_history().sort_values("timestamp", ascending=False).head(6)
-                    if recent_history.empty:
-                        st.info("Aun no hay actualizaciones recientes.")
-                    else:
-                        for _, event in recent_history.iterrows():
-                            event_time = event["timestamp"].strftime("%b %d, %H:%M")
-                            note = event["trend_note"] if str(event["trend_note"]).strip() else "Sin nota de tendencia."
-                            st.markdown(
-                                f"""
-                                <div class="trend-note-card">
-                                    <div class="trend-note-time">{html.escape(str(event_time))} · {html.escape(str(event['player']))}</div>
-                                    <p class="trend-note-text">{html.escape(str(note))}</p>
-                                </div>
-                                """,
-                                unsafe_allow_html=True,
-                            )
+                        points_to_add = int(custom_points) if int(custom_points) > 0 else int(quick_points)
+                        submitted = st.form_submit_button(f"Apply +{points_to_add} points", use_container_width=True)
 
-            st.markdown("<p class='section-title'>Vista previa del ranking</p>", unsafe_allow_html=True)
-            render_dynamic_scoreboard(df)
+                    if submitted:
+                        clean_player_name = (player_input_value or "").strip()
+                        if clean_player_name == "":
+                            st.warning("Enter a player name.")
+                        else:
+                            if clean_player_name in df["Player"].values:
+                                df.loc[df["Player"] == clean_player_name, "Points"] += points_to_add
+                            else:
+                                new_row = pd.DataFrame([[clean_player_name, points_to_add]], columns=["Player", "Points"])
+                                df = pd.concat([df, new_row], ignore_index=True)
+                                create_player_account_if_missing(clean_player_name, default_player_password)
+
+                            total_after = int(
+                                pd.to_numeric(
+                                    df.loc[df["Player"] == clean_player_name, "Points"],
+                                    errors="coerce",
+                                ).fillna(0).iloc[0]
+                            )
+                            trend_note = log_points_update(clean_player_name, points_to_add, total_after)
+                            if save_scores(df):
+                                st.session_state["admin_last_update_message"] = f"{clean_player_name}: {trend_note}"
+                                st.rerun()
+
+                    if st.session_state.get("admin_last_update_message"):
+                        st.success(st.session_state.pop("admin_last_update_message"))
+
+                with col_right:
+                    st.markdown("<p class='section-title'>Automatizaciones</p>", unsafe_allow_html=True)
+                    if st.button("Assign Accounts to Scoreboard Players", use_container_width=True):
+                        created_accounts = assign_accounts_to_scoreboard_players(default_player_password)
+                        if created_accounts:
+                            st.success(f"Accounts created: {', '.join(created_accounts)}")
+                        else:
+                            st.info("All scoreboard players already have an account.")
+
+                    render_scoreboard_background_uploader("admin_scoreboard_background_upload")
+
+                    st.markdown("<p class='section-title'>Trend Updates</p>", unsafe_allow_html=True)
+                    trend_tab_1, trend_tab_2 = st.tabs(["Latest by player", "Recent updates"])
+
+                    with trend_tab_1:
+                        latest_by_player = get_latest_trend_by_player(limit=6)
+                        if latest_by_player.empty:
+                            st.info("Aun no hay tendencias por jugador.")
+                        else:
+                            for _, event in latest_by_player.iterrows():
+                                event_time = event["timestamp"].strftime("%b %d, %H:%M")
+                                note = event["trend_note"] if str(event["trend_note"]).strip() else "Sin nota de tendencia."
+                                st.markdown(
+                                    f"""
+                                    <div class="trend-note-card">
+                                        <div class="trend-note-time">{html.escape(str(event['player']))} · {html.escape(str(event_time))}</div>
+                                        <p class="trend-note-text">{html.escape(str(note))}</p>
+                                    </div>
+                                    """,
+                                    unsafe_allow_html=True,
+                                )
+
+                    with trend_tab_2:
+                        recent_history = get_clean_history().sort_values("timestamp", ascending=False).head(6)
+                        if recent_history.empty:
+                            st.info("Aun no hay actualizaciones recientes.")
+                        else:
+                            for _, event in recent_history.iterrows():
+                                event_time = event["timestamp"].strftime("%b %d, %H:%M")
+                                note = event["trend_note"] if str(event["trend_note"]).strip() else "Sin nota de tendencia."
+                                st.markdown(
+                                    f"""
+                                    <div class="trend-note-card">
+                                        <div class="trend-note-time">{html.escape(str(event_time))} · {html.escape(str(event['player']))}</div>
+                                        <p class="trend-note-text">{html.escape(str(note))}</p>
+                                    </div>
+                                    """,
+                                    unsafe_allow_html=True,
+                                )
+
+                st.markdown("<p class='section-title'>Vista previa del ranking</p>", unsafe_allow_html=True)
+                render_dynamic_scoreboard(df)
+
+            with admin_tab_reset:
+                st.markdown("<p class='section-title'>Reset Points Table</p>", unsafe_allow_html=True)
+                st.warning("Esta accion reinicia todos los puntos a 0. Los players se mantienen en la tabla.")
+
+                if st.button("Reset table points", key="admin_reset_trigger", use_container_width=True):
+                    st.session_state["admin_reset_pending"] = True
+
+                if st.session_state.get("admin_reset_pending", False):
+                    st.error("Confirmacion requerida: ¿Quieres resetear la tabla de puntos?")
+                    confirm_col, cancel_col = st.columns(2)
+
+                    with confirm_col:
+                        if st.button("Yes, reset now", key="admin_reset_confirm", use_container_width=True):
+                            reset_df = load_scores()
+                            if not reset_df.empty:
+                                reset_df["Points"] = 0
+                                if not save_scores(reset_df):
+                                    st.stop()
+                            st.session_state["admin_reset_pending"] = False
+                            st.session_state["admin_last_update_message"] = "Scoreboard reset: todos los puntos en 0."
+                            st.rerun()
+
+                    with cancel_col:
+                        if st.button("Cancel", key="admin_reset_cancel", use_container_width=True):
+                            st.session_state["admin_reset_pending"] = False
+                            st.info("Reset cancelado.")
 
         elif menu == "Scoreboard General":
             render_hero("Scoreboard General", "Visualiza posiciones, tendencia y zonas calientes/frias.")

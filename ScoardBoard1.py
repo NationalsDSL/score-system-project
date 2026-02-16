@@ -1,6 +1,7 @@
 ﻿import base64
 import html
 import io
+import math
 import os
 import time
 
@@ -17,6 +18,310 @@ USERS_FILE = "users.csv"
 SCOREBOARD_BG_FILE = "scoreboard_bg.png"
 HISTORY_FILE = "score_history.csv"
 HISTORY_COLUMNS = ["timestamp", "player", "points_added", "total_after", "trend_note"]
+
+TRANSLATIONS = {
+    "es": {
+        "language": "Idioma",
+        "language_es": "Espanol",
+        "language_en": "English",
+        "dynamic_scoreboard": "Dynamic Scoreboard",
+        "login_title": "Iniciar sesion",
+        "username": "Username",
+        "password": "Password",
+        "login_button": "Login",
+        "login_success": "Login successful!",
+        "invalid_credentials": "Credenciales invalidas",
+        "sidebar_user": "Usuario",
+        "sidebar_role": "Rol",
+        "logout": "Logout",
+        "navigation": "Navegacion",
+        "menu_admin_panel": "Admin Panel",
+        "menu_scoreboard_general": "Scoreboard General",
+        "menu_winners": "Winners",
+        "menu_period_winners": "Period Winners",
+        "menu_my_score": "My Score",
+        "hero_dynamic_title": "Dynamic Scoreboard",
+        "hero_dynamic_subtitle": "Accede para ver el ranking y el rendimiento del torneo.",
+        "hero_admin_title": "Admin Control Center",
+        "hero_admin_subtitle": "Gestiona jugadores, puntajes y cuentas en un solo lugar.",
+        "hero_scoreboard_general_title": "Scoreboard General",
+        "hero_scoreboard_general_subtitle": "Visualiza posiciones, tendencia y zonas calientes/frias.",
+        "hero_winners_title": "Winners",
+        "hero_winners_subtitle": "Los tres primeros del torneo.",
+        "hero_period_winners_title": "Weekly and Monthly Winners",
+        "hero_period_winners_subtitle": "Ganadores automaticos por semana y por mes basados en el historial de puntos.",
+        "hero_my_score_title": "My Score",
+        "hero_my_score_subtitle": "Revisa tus puntos y tu posicion actual en el torneo.",
+        "hero_scoreboard_title": "Scoreboard",
+        "hero_scoreboard_subtitle": "Compite, sube posiciones y mantente en la zona caliente.",
+        "players_registered": "Players registrados",
+        "total_points": "Puntos totales",
+        "average_per_player": "Promedio por player",
+        "current_leader": "Lider actual",
+        "save_failed_title": "No se pudo guardar `{file_path}` porque esta en uso o bloqueado.",
+        "save_failed_hint": "Cierra el archivo si esta abierto (por ejemplo, en Excel) e intenta de nuevo.",
+        "technical_detail": "Detalle tecnico: {error}",
+        "bg_expander": "Imagen de fondo para Scoreboard General",
+        "bg_upload": "Sube una imagen PNG",
+        "bg_saved": "Imagen de fondo guardada.",
+        "bg_current_file": "Archivo actual: {file}",
+        "no_players_scoreboard": "No hay players en el scoreboard todavia.",
+        "leaderboard_tab": "Leaderboard",
+        "last_7_days_tab": "Last 7 Days",
+        "last_15_days_tab": "Last 15 Days",
+        "last_30_days_tab": "Last 30 Days",
+        "caption_total_tournament": "Total acumulado del torneo.",
+        "caption_last_days": "Puntos ganados en los ultimos {days} dias.",
+        "pdf_no_data": "No hay datos para exportar.",
+        "pdf_missing_matplotlib": "No se pudo generar el PDF porque matplotlib no esta disponible.",
+        "pdf_table_title": "Scoreboard Ranking Table",
+        "pdf_generated_footer": "Generado: {datetime} | Players: {players} | Pagina {page}/{pages}",
+        "download_pdf_table": "Download PDF table",
+        "no_winners_yet": "Aun no hay ganadores porque no hay puntajes cargados.",
+        "place_label": "Puesto {position}",
+        "no_player": "Sin player",
+        "points_short": "pts",
+        "no_points_history": "Aun no hay historial de puntos. Agrega puntos para generar ganadores semanales y mensuales.",
+        "select_month": "Select month",
+        "week_highlight": "Week Highlight",
+        "month_highlight": "Month Highlight",
+        "tab_weekly_winners": "Weekly Winners",
+        "tab_monthly_winners": "Monthly Winners",
+        "weekly_winners_of_month": "Weekly winners of selected month",
+        "monthly_winners_history": "Monthly winners history",
+        "no_weekly_winner_for_month": "No weekly winner yet for this month.",
+        "no_monthly_winner_for_month": "No monthly winner yet for this month.",
+        "no_weekly_winners_month": "No weekly winners for this month.",
+        "no_monthly_winners_history": "No monthly winners in history.",
+        "weekly_period_label": "{week} Week {month} Winner",
+        "monthly_period_label": "{month} Winner",
+        "default_player_password": "Password por defecto para nuevas cuentas player",
+        "tab_points_trends": "Points & Trends",
+        "tab_reset_table": "Reset Table",
+        "section_fast_points_update": "Fast Points Update",
+        "target": "Target",
+        "existing_player": "Existing player",
+        "new_player": "New player",
+        "select_player": "Select player",
+        "no_existing_players": "No hay players existentes. Crea uno nuevo.",
+        "new_player_name": "New player name",
+        "quick_points": "Quick points",
+        "custom_points_optional": "Custom points (optional)",
+        "apply_points_button": "Apply +{points} points",
+        "enter_player_name": "Enter a player name.",
+        "section_automation": "Automatizaciones",
+        "automation_caption": "Only creates accounts for players without an existing account.",
+        "assign_accounts_new_only": "Assign Accounts to New Players Only",
+        "new_accounts_created": "New player accounts created: {accounts}",
+        "no_new_players_accounts": "No new players found. All current players already have an account.",
+        "section_trend_updates": "Trend Updates",
+        "tab_latest_by_player": "Latest by player",
+        "tab_recent_updates": "Recent updates",
+        "no_trends_by_player": "Aun no hay tendencias por jugador.",
+        "no_recent_updates": "Aun no hay actualizaciones recientes.",
+        "no_trend_note": "Sin nota de tendencia.",
+        "section_ranking_preview": "Vista previa del ranking",
+        "section_reset_points_table": "Reset Points Table",
+        "reset_warning": "Esta accion reinicia todos los puntos a 0. Los players se mantienen en la tabla.",
+        "reset_button": "Reset table points",
+        "reset_confirm_required": "Confirmacion requerida: Quieres resetear la tabla de puntos?",
+        "reset_confirm_button": "Yes, reset now",
+        "cancel": "Cancel",
+        "reset_cancelled": "Reset cancelado.",
+        "reset_success": "Scoreboard reset: todos los puntos en 0.",
+        "your_points": "Your Points",
+        "average_points_week": "Average Points / Week",
+        "weekly_target_position": "Weekly Target Position",
+        "weekly_forecast_points": "Weekly Forecast (pts)",
+        "zone": "Zone",
+        "sessions_week_est": "Sessions / Week (est.)",
+        "goal_per_session_points": "Goal per Session (pts)",
+        "points_to_next_position": "Points to Next Position",
+        "zone_hot": "HOT 🔥",
+        "zone_cold": "COLD ❄️",
+        "zone_run": "RUN 🏃",
+        "weekly_goal_move_up": "Objetivo semanal: subir de #{current} a #{target}. {summary}",
+        "weekly_goal_hold": "Objetivo semanal: consolidar la posicion #{current} y presionar el siguiente lugar. {summary}",
+        "no_score_assigned": "No score assigned yet.",
+        "summary_no_history": "Sin historial de sesiones. Necesitas registrar puntos para generar pronostico.",
+        "summary_forecast": "Pronostico semanal: {forecast} pts. Objetivo por sesion: {session_goal} pts.",
+        "trend_stable": "estable",
+        "trend_up": "al alza",
+        "trend_down": "a la baja",
+        "trend_note_text": "+{gain} pts. Total: {total}. Semana: {week} pts. Mes: {month} pts. Tendencia: {trend}.",
+    },
+    "en": {
+        "language": "Language",
+        "language_es": "Spanish",
+        "language_en": "English",
+        "dynamic_scoreboard": "Dynamic Scoreboard",
+        "login_title": "Sign in",
+        "username": "Username",
+        "password": "Password",
+        "login_button": "Login",
+        "login_success": "Login successful!",
+        "invalid_credentials": "Invalid credentials",
+        "sidebar_user": "User",
+        "sidebar_role": "Role",
+        "logout": "Logout",
+        "navigation": "Navigation",
+        "menu_admin_panel": "Admin Panel",
+        "menu_scoreboard_general": "Scoreboard General",
+        "menu_winners": "Winners",
+        "menu_period_winners": "Period Winners",
+        "menu_my_score": "My Score",
+        "hero_dynamic_title": "Dynamic Scoreboard",
+        "hero_dynamic_subtitle": "Sign in to track ranking and tournament performance.",
+        "hero_admin_title": "Admin Control Center",
+        "hero_admin_subtitle": "Manage players, points, and accounts in one place.",
+        "hero_scoreboard_general_title": "Scoreboard General",
+        "hero_scoreboard_general_subtitle": "View standings, trends, and hot/cold zones.",
+        "hero_winners_title": "Winners",
+        "hero_winners_subtitle": "Top three players in the tournament.",
+        "hero_period_winners_title": "Weekly and Monthly Winners",
+        "hero_period_winners_subtitle": "Automatic weekly and monthly winners based on points history.",
+        "hero_my_score_title": "My Score",
+        "hero_my_score_subtitle": "Check your points and your current tournament position.",
+        "hero_scoreboard_title": "Scoreboard",
+        "hero_scoreboard_subtitle": "Compete, climb positions, and stay in the hot zone.",
+        "players_registered": "Registered players",
+        "total_points": "Total points",
+        "average_per_player": "Average per player",
+        "current_leader": "Current leader",
+        "save_failed_title": "Could not save `{file_path}` because it is in use or locked.",
+        "save_failed_hint": "Close the file if it is open (for example, in Excel) and try again.",
+        "technical_detail": "Technical detail: {error}",
+        "bg_expander": "Background image for Scoreboard General",
+        "bg_upload": "Upload a PNG image",
+        "bg_saved": "Background image saved.",
+        "bg_current_file": "Current file: {file}",
+        "no_players_scoreboard": "No players in the scoreboard yet.",
+        "leaderboard_tab": "Leaderboard",
+        "last_7_days_tab": "Last 7 Days",
+        "last_15_days_tab": "Last 15 Days",
+        "last_30_days_tab": "Last 30 Days",
+        "caption_total_tournament": "Total accumulated tournament points.",
+        "caption_last_days": "Points earned in the last {days} days.",
+        "pdf_no_data": "No data available to export.",
+        "pdf_missing_matplotlib": "Could not generate PDF because matplotlib is not available.",
+        "pdf_table_title": "Scoreboard Ranking Table",
+        "pdf_generated_footer": "Generated: {datetime} | Players: {players} | Page {page}/{pages}",
+        "download_pdf_table": "Download PDF table",
+        "no_winners_yet": "There are no winners yet because no scores were recorded.",
+        "place_label": "Place {position}",
+        "no_player": "No player",
+        "points_short": "pts",
+        "no_points_history": "No points history yet. Add points to generate weekly and monthly winners.",
+        "select_month": "Select month",
+        "week_highlight": "Week Highlight",
+        "month_highlight": "Month Highlight",
+        "tab_weekly_winners": "Weekly Winners",
+        "tab_monthly_winners": "Monthly Winners",
+        "weekly_winners_of_month": "Weekly winners of selected month",
+        "monthly_winners_history": "Monthly winners history",
+        "no_weekly_winner_for_month": "No weekly winner yet for this month.",
+        "no_monthly_winner_for_month": "No monthly winner yet for this month.",
+        "no_weekly_winners_month": "No weekly winners for this month.",
+        "no_monthly_winners_history": "No monthly winners in history.",
+        "weekly_period_label": "Week {week} {month} Winner",
+        "monthly_period_label": "{month} Winner",
+        "default_player_password": "Default password for new player accounts",
+        "tab_points_trends": "Points & Trends",
+        "tab_reset_table": "Reset Table",
+        "section_fast_points_update": "Fast Points Update",
+        "target": "Target",
+        "existing_player": "Existing player",
+        "new_player": "New player",
+        "select_player": "Select player",
+        "no_existing_players": "No existing players found. Create a new one.",
+        "new_player_name": "New player name",
+        "quick_points": "Quick points",
+        "custom_points_optional": "Custom points (optional)",
+        "apply_points_button": "Apply +{points} points",
+        "enter_player_name": "Enter a player name.",
+        "section_automation": "Automation",
+        "automation_caption": "Only creates accounts for players without an existing account.",
+        "assign_accounts_new_only": "Assign Accounts to New Players Only",
+        "new_accounts_created": "New player accounts created: {accounts}",
+        "no_new_players_accounts": "No new players found. All current players already have an account.",
+        "section_trend_updates": "Trend Updates",
+        "tab_latest_by_player": "Latest by player",
+        "tab_recent_updates": "Recent updates",
+        "no_trends_by_player": "No trends by player yet.",
+        "no_recent_updates": "No recent updates yet.",
+        "no_trend_note": "No trend note.",
+        "section_ranking_preview": "Ranking preview",
+        "section_reset_points_table": "Reset Points Table",
+        "reset_warning": "This action resets all points to 0. Players remain in the table.",
+        "reset_button": "Reset table points",
+        "reset_confirm_required": "Confirmation required: do you really want to reset the points table?",
+        "reset_confirm_button": "Yes, reset now",
+        "cancel": "Cancel",
+        "reset_cancelled": "Reset canceled.",
+        "reset_success": "Scoreboard reset: all points set to 0.",
+        "your_points": "Your Points",
+        "average_points_week": "Average Points / Week",
+        "weekly_target_position": "Weekly Target Position",
+        "weekly_forecast_points": "Weekly Forecast (pts)",
+        "zone": "Zone",
+        "sessions_week_est": "Sessions / Week (est.)",
+        "goal_per_session_points": "Goal per Session (pts)",
+        "points_to_next_position": "Points to Next Position",
+        "zone_hot": "HOT 🔥",
+        "zone_cold": "COLD ❄️",
+        "zone_run": "RUN 🏃",
+        "weekly_goal_move_up": "Weekly target: move up from #{current} to #{target}. {summary}",
+        "weekly_goal_hold": "Weekly target: hold position #{current} and push for the next place. {summary}",
+        "no_score_assigned": "No score assigned yet.",
+        "summary_no_history": "No session history yet. You need points updates to generate a forecast.",
+        "summary_forecast": "Weekly forecast: {forecast} pts. Session goal: {session_goal} pts.",
+        "trend_stable": "stable",
+        "trend_up": "upward",
+        "trend_down": "downward",
+        "trend_note_text": "+{gain} pts. Total: {total}. Week: {week} pts. Month: {month} pts. Trend: {trend}.",
+    },
+}
+
+
+def tr(key, **kwargs):
+    lang = st.session_state.get("lang", "es")
+    data = TRANSLATIONS.get(lang, TRANSLATIONS["es"])
+    template = data.get(key, TRANSLATIONS["es"].get(key, key))
+    try:
+        return template.format(**kwargs)
+    except Exception:
+        return template
+
+
+def render_language_selector(use_sidebar=False):
+    options = ["es", "en"]
+    labels = {
+        "es": tr("language_es"),
+        "en": tr("language_en"),
+    }
+    current = st.session_state.get("lang", "es")
+    if current not in options:
+        current = "es"
+
+    index = options.index(current)
+    if use_sidebar:
+        selected = st.sidebar.selectbox(
+            tr("language"),
+            options,
+            index=index,
+            format_func=lambda code: labels.get(code, code),
+        )
+    else:
+        selected = st.selectbox(
+            tr("language"),
+            options,
+            index=index,
+            format_func=lambda code: labels.get(code, code),
+        )
+
+    if selected != st.session_state.get("lang"):
+        st.session_state.lang = selected
+        st.rerun()
 
 # -----------------------------
 # CREATE FILES IF NOT EXIST
@@ -59,11 +364,11 @@ def _safe_to_csv(df, file_path, retries=6, base_delay=0.2):
             break
 
     st.error(
-        f"No se pudo guardar `{file_path}` porque esta en uso o bloqueado. "
-        "Cierra el archivo si esta abierto (por ejemplo, en Excel) e intenta de nuevo."
+        f"{tr('save_failed_title', file_path=file_path)} "
+        f"{tr('save_failed_hint')}"
     )
     if last_error:
-        st.caption(f"Detalle tecnico: {last_error}")
+        st.caption(tr("technical_detail", error=last_error))
     return False
 
 
@@ -105,7 +410,7 @@ def load_history():
 def build_trend_note_from_history(history, player_name):
     player_history = history[history["player"] == player_name].sort_values("timestamp")
     if player_history.empty:
-        return "Sin historial suficiente para tendencia."
+        return tr("summary_no_history")
 
     last_row = player_history.iloc[-1]
     last_gain = int(last_row["points_added"])
@@ -120,25 +425,28 @@ def build_trend_note_from_history(history, player_name):
         ]["points_added"].sum()
     )
 
-    trend_label = "estable"
+    trend_label = tr("trend_stable")
     if len(player_history) >= 6:
         previous_block = int(player_history.iloc[-6:-3]["points_added"].sum())
         recent_block = int(player_history.iloc[-3:]["points_added"].sum())
         if recent_block > previous_block:
-            trend_label = "al alza"
+            trend_label = tr("trend_up")
         elif recent_block < previous_block:
-            trend_label = "a la baja"
+            trend_label = tr("trend_down")
     elif len(player_history) >= 2:
         prev_gain = int(player_history.iloc[-2]["points_added"])
         if last_gain > prev_gain:
-            trend_label = "al alza"
+            trend_label = tr("trend_up")
         elif last_gain < prev_gain:
-            trend_label = "a la baja"
+            trend_label = tr("trend_down")
 
-    return (
-        f"+{last_gain} pts. Total: {total_after}. "
-        f"Semana: {week_points} pts. Mes: {month_points} pts. "
-        f"Tendencia: {trend_label}."
+    return tr(
+        "trend_note_text",
+        gain=last_gain,
+        total=total_after,
+        week=week_points,
+        month=month_points,
+        trend=trend_label,
     )
 
 
@@ -178,13 +486,22 @@ def get_ranking(df):
     return ranking
 
 
+def normalize_identity(value):
+    return str(value).strip().casefold()
+
+
 def create_player_account_if_missing(player_name, default_password):
     users = load_users()
-    if player_name in users["username"].values:
+    clean_player_name = str(player_name).strip()
+    if clean_player_name == "":
+        return False
+
+    existing_usernames = set(users["username"].astype(str).map(normalize_identity).tolist())
+    if normalize_identity(clean_player_name) in existing_usernames:
         return False
 
     new_user = pd.DataFrame(
-        [[player_name, default_password, "player"]],
+        [[clean_player_name, default_password, "player"]],
         columns=["username", "password", "role"]
     )
     users = pd.concat([users, new_user], ignore_index=True)
@@ -195,11 +512,22 @@ def assign_accounts_to_scoreboard_players(default_password):
     scores = load_scores()
     users = load_users()
 
-    players = scores["Player"].dropna().astype(str).str.strip().tolist()
-    players = list(dict.fromkeys([player for player in players if player]))
+    player_series = scores["Player"].dropna().astype(str).str.strip()
+    players = [player for player in player_series.tolist() if player]
 
-    existing_users = set(users["username"].astype(str).tolist())
-    missing_players = [player for player in players if player not in existing_users]
+    seen_players = set()
+    unique_players = []
+    for player in players:
+        player_key = normalize_identity(player)
+        if player_key not in seen_players:
+            seen_players.add(player_key)
+            unique_players.append(player)
+
+    existing_users = set(users["username"].astype(str).map(normalize_identity).tolist())
+    missing_players = [
+        player for player in unique_players
+        if normalize_identity(player) not in existing_users
+    ]
 
     if not missing_players:
         return []
@@ -306,34 +634,87 @@ def inject_global_styles():
         """
         <style>
         :root {
-            --ink: #1f2937;
-            --muted: #6b7280;
-            --navy: #0f172a;
-            --blue: #1d4ed8;
-            --red: #be123c;
+            --nationals-navy: #14225a;
+            --nationals-navy-deep: #0b1436;
+            --nationals-red: #ab0003;
+            --nationals-red-soft: #cf1020;
+            --ink: #13213e;
+            --muted: #4b5563;
             --card: #ffffff;
-            --soft: #f8fafc;
+            --soft: #f6f8fc;
         }
 
         .stApp {
-            background: radial-gradient(circle at 0% 0%, #eef2ff 0%, #f8fafc 45%, #f3f4f6 100%);
+            background:
+                radial-gradient(circle at 0% 0%, rgba(20,34,90,0.14) 0%, rgba(20,34,90,0.00) 46%),
+                radial-gradient(circle at 100% 0%, rgba(171,0,3,0.10) 0%, rgba(171,0,3,0.00) 44%),
+                linear-gradient(180deg, #f9fbff 0%, #eef2f9 100%);
         }
 
         [data-testid="stSidebar"] {
-            background: linear-gradient(165deg, #0b132b 0%, #12284c 52%, #1f3d64 100%);
+            background:
+                linear-gradient(158deg, var(--nationals-navy-deep) 0%, var(--nationals-navy) 62%, #213a84 100%);
+            border-right: 1px solid rgba(255, 255, 255, 0.12);
         }
 
         [data-testid="stSidebar"] * {
-            color: #e5e7eb !important;
+            color: #f3f4f6 !important;
+        }
+
+        [data-testid="stSidebar"] [data-baseweb="radio"] > div {
+            background: rgba(255, 255, 255, 0.04);
+            border-radius: 10px;
+            padding: 4px 8px;
         }
 
         .hero {
-            background: linear-gradient(125deg, rgba(15,23,42,0.96), rgba(29,78,216,0.88));
-            border: 1px solid rgba(255,255,255,0.15);
-            border-radius: 16px;
-            padding: 20px 24px;
+            background:
+                linear-gradient(118deg, rgba(11,20,54,0.96) 0%, rgba(20,34,90,0.95) 56%, rgba(171,0,3,0.84) 100%);
+            border: 1px solid rgba(255, 255, 255, 0.18);
+            border-radius: 18px;
+            padding: 22px 24px;
             margin-bottom: 14px;
-            box-shadow: 0 12px 30px rgba(15, 23, 42, 0.25);
+            box-shadow: 0 14px 32px rgba(20, 34, 90, 0.28);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .hero-content {
+            position: relative;
+            z-index: 1;
+        }
+
+        .hero-text {
+            min-width: 0;
+            max-width: calc(100% - 126px);
+        }
+
+        .hero.with-logo::before {
+            content: "";
+            position: absolute;
+            right: 22px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 86px;
+            height: 86px;
+            border-radius: 50%;
+            border: 1px solid rgba(255,255,255,0.35);
+            background-color: rgba(255,255,255,0.12);
+            background-image: var(--hero-logo);
+            background-repeat: no-repeat;
+            background-size: 68px 68px;
+            background-position: center;
+            z-index: 1;
+        }
+
+        .hero::after {
+            content: "";
+            position: absolute;
+            width: 220px;
+            height: 220px;
+            right: -80px;
+            top: -90px;
+            background: radial-gradient(circle, rgba(255,255,255,0.30) 0%, rgba(255,255,255,0.00) 72%);
         }
 
         .hero h1 {
@@ -348,15 +729,35 @@ def inject_global_styles():
             color: #e2e8f0;
             margin: 8px 0 0 0;
             font-size: 1rem;
+            max-width: 72ch;
+        }
+
+        @media (max-width: 860px) {
+            .hero-text {
+                max-width: calc(100% - 98px);
+            }
+
+            .hero.with-logo::before {
+                width: 64px;
+                height: 64px;
+                background-size: 50px 50px;
+                right: 16px;
+            }
         }
 
         .kpi-card {
             background: var(--card);
-            border: 1px solid rgba(15, 23, 42, 0.08);
-            border-radius: 14px;
+            border: 1px solid rgba(20, 34, 90, 0.12);
+            border-radius: 15px;
             padding: 14px 16px;
             margin-bottom: 8px;
-            box-shadow: 0 6px 18px rgba(15, 23, 42, 0.08);
+            box-shadow: 0 8px 20px rgba(20, 34, 90, 0.08);
+            transition: transform 120ms ease, box-shadow 120ms ease;
+        }
+
+        .kpi-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 12px 24px rgba(20, 34, 90, 0.12);
         }
 
         .kpi-label {
@@ -372,19 +773,27 @@ def inject_global_styles():
             line-height: 1.1;
         }
 
-        .podium-card {
+        [data-testid="stMetric"] {
+            background: rgba(255, 255, 255, 0.85);
+            border: 1px solid rgba(20, 34, 90, 0.10);
             border-radius: 14px;
-            border: 1px solid rgba(15, 23, 42, 0.08);
+            padding: 12px 14px;
+            box-shadow: 0 8px 18px rgba(20, 34, 90, 0.08);
+        }
+
+        .podium-card {
+            border-radius: 15px;
+            border: 1px solid rgba(20, 34, 90, 0.12);
             background: #ffffff;
             padding: 16px;
             min-height: 130px;
-            box-shadow: 0 10px 24px rgba(15, 23, 42, 0.10);
+            box-shadow: 0 10px 24px rgba(20, 34, 90, 0.11);
         }
 
         .podium-title {
             margin: 0;
             font-size: 1rem;
-            color: #0f172a;
+            color: var(--nationals-navy);
             font-weight: 700;
         }
 
@@ -396,24 +805,24 @@ def inject_global_styles():
         }
 
         .podium-points {
-            color: #475569;
+            color: var(--nationals-red);
             font-size: 0.95rem;
         }
 
         .section-title {
-            color: #111827;
+            color: var(--nationals-navy);
             margin: 8px 0 10px 0;
             font-size: 1.2rem;
             font-weight: 700;
         }
 
         .winner-card {
-            border-radius: 14px;
-            border: 1px solid rgba(15, 23, 42, 0.08);
+            border-radius: 15px;
+            border: 1px solid rgba(20, 34, 90, 0.12);
             background: rgba(255, 255, 255, 0.95);
             padding: 14px;
             margin-bottom: 10px;
-            box-shadow: 0 10px 22px rgba(15, 23, 42, 0.08);
+            box-shadow: 0 10px 22px rgba(20, 34, 90, 0.09);
         }
 
         .winner-card .period {
@@ -424,20 +833,20 @@ def inject_global_styles():
 
         .winner-card .winner {
             font-size: 1.1rem;
-            color: #0f172a;
+            color: var(--nationals-navy);
             font-weight: 700;
             margin-bottom: 6px;
         }
 
         .winner-card .points {
             font-size: 0.95rem;
-            color: #be123c;
+            color: var(--nationals-red);
             font-weight: 700;
         }
 
         .trend-note-card {
             border-radius: 12px;
-            border: 1px solid rgba(15, 23, 42, 0.08);
+            border: 1px solid rgba(20, 34, 90, 0.10);
             background: rgba(255, 255, 255, 0.95);
             padding: 12px 14px;
             margin-bottom: 8px;
@@ -450,9 +859,32 @@ def inject_global_styles():
         }
 
         .trend-note-text {
-            color: #0f172a;
+            color: var(--nationals-navy);
             font-size: 0.94rem;
             margin: 0;
+        }
+
+        .stButton > button {
+            border-radius: 10px;
+            border: 1px solid rgba(20, 34, 90, 0.18);
+            background: linear-gradient(120deg, var(--nationals-red) 0%, var(--nationals-red-soft) 100%);
+            color: #ffffff;
+            font-weight: 700;
+            transition: transform 120ms ease, box-shadow 120ms ease, filter 120ms ease;
+            box-shadow: 0 6px 16px rgba(171, 0, 3, 0.24);
+        }
+
+        .stButton > button:hover {
+            transform: translateY(-1px);
+            filter: brightness(1.03);
+            box-shadow: 0 10px 20px rgba(171, 0, 3, 0.28);
+        }
+
+        [data-testid="stDataFrame"] {
+            border: 1px solid rgba(20, 34, 90, 0.12);
+            border-radius: 14px;
+            box-shadow: 0 8px 20px rgba(20, 34, 90, 0.10);
+            overflow: hidden;
         }
         </style>
         """,
@@ -460,12 +892,31 @@ def inject_global_styles():
     )
 
 
+def get_header_logo_data_uri():
+    if not os.path.exists(SCOREBOARD_BG_FILE):
+        return None
+    try:
+        with open(SCOREBOARD_BG_FILE, "rb") as logo_file:
+            encoded_logo = base64.b64encode(logo_file.read()).decode("utf-8")
+        return f"data:image/png;base64,{encoded_logo}"
+    except OSError:
+        return None
+
+
 def render_hero(title, subtitle):
+    logo_uri = get_header_logo_data_uri()
+    hero_class = "hero with-logo" if logo_uri else "hero"
+    hero_style = f" style=\"--hero-logo:url('{logo_uri}');\"" if logo_uri else ""
+
     st.markdown(
         f"""
-        <div class="hero">
-            <h1>{html.escape(title)}</h1>
-            <p>{html.escape(subtitle)}</p>
+        <div class="{hero_class}"{hero_style}>
+            <div class="hero-content">
+                <div class="hero-text">
+                    <h1>{html.escape(title)}</h1>
+                    <p>{html.escape(subtitle)}</p>
+                </div>
+            </div>
         </div>
         """,
         unsafe_allow_html=True,
@@ -559,12 +1010,43 @@ def render_scoreboard_background_uploader(uploader_key):
             st.image(SCOREBOARD_BG_FILE, width=170)
 
 
-def render_dynamic_scoreboard(df):
-    ranking = get_ranking(df)
+def get_period_activity_ranking(df, days):
+    base_ranking = get_ranking(df)
+    if base_ranking.empty:
+        return base_ranking
 
+    base = base_ranking[["Player"]].copy()
+    base["BaseOrder"] = range(len(base))
+    base["Points"] = 0
+
+    history = get_clean_history()
+    if history.empty:
+        return base[["Player", "Points"]]
+
+    cutoff = pd.Timestamp.now() - pd.Timedelta(days=days)
+    period_history = history[history["timestamp"] >= cutoff]
+    if period_history.empty:
+        return base[["Player", "Points"]]
+
+    period_points = (
+        period_history.groupby("player", as_index=False)["points_added"]
+        .sum()
+        .rename(columns={"player": "Player", "points_added": "Points"})
+    )
+
+    merged = base.drop(columns=["Points"]).merge(period_points, on="Player", how="left")
+    merged["Points"] = pd.to_numeric(merged["Points"], errors="coerce").fillna(0).astype(int)
+    merged = merged.sort_values(by=["Points", "BaseOrder"], ascending=[False, True]).reset_index(drop=True)
+    return merged[["Player", "Points"]]
+
+
+def render_scoreboard_table(ranking, caption_text=None):
     if ranking.empty:
         st.info("No hay players en el scoreboard todavia.")
         return
+
+    if caption_text:
+        st.caption(caption_text)
 
     total_players = len(ranking)
 
@@ -592,16 +1074,32 @@ def render_dynamic_scoreboard(df):
         subset=["Points"],
     )
 
-    tab1, tab2 = st.tabs(["Leaderboard", "Tendencia"])
+    height = 460 if total_players > 10 else None
+    st.dataframe(styled, use_container_width=True, height=height)
+
+
+def render_dynamic_scoreboard(df):
+    total_ranking = get_ranking(df)
+    if total_ranking.empty:
+        st.info("No hay players en el scoreboard todavia.")
+        return
+
+    tab1, tab2, tab3, tab4 = st.tabs(["Leaderboard", "Last 7 Days", "Last 15 Days", "Last 30 Days"])
 
     with tab1:
-        height = 460 if total_players > 10 else None
-        st.dataframe(styled, use_container_width=True, height=height)
+        render_scoreboard_table(total_ranking, "Total acumulado del torneo.")
 
     with tab2:
-        st.markdown("<p class='section-title'>Top 10 por puntos</p>", unsafe_allow_html=True)
-        chart_data = ranking.head(10).set_index("Player")[["Points"]]
-        st.bar_chart(chart_data, use_container_width=True)
+        ranking_7 = get_period_activity_ranking(df, 7)
+        render_scoreboard_table(ranking_7, "Puntos ganados en los ultimos 7 dias.")
+
+    with tab3:
+        ranking_15 = get_period_activity_ranking(df, 15)
+        render_scoreboard_table(ranking_15, "Puntos ganados en los ultimos 15 dias.")
+
+    with tab4:
+        ranking_30 = get_period_activity_ranking(df, 30)
+        render_scoreboard_table(ranking_30, "Puntos ganados en los ultimos 30 dias.")
 
 
 def build_scoreboard_pdf(df):
@@ -823,6 +1321,93 @@ def get_latest_trend_by_player(limit=8):
     return latest.head(limit)
 
 
+def compute_player_week_projection(player_name, ranking):
+    current_points = 0
+    current_position = None
+
+    if not ranking.empty and player_name in ranking["Player"].values:
+        player_row = ranking[ranking["Player"] == player_name].iloc[0]
+        current_points = int(player_row["Points"])
+        current_position = int(ranking[ranking["Player"] == player_name].index[0] + 1)
+
+    history = get_clean_history()
+    player_history = history[history["player"] == player_name].sort_values("timestamp")
+
+    if player_history.empty:
+        return {
+            "current_points": current_points,
+            "current_position": current_position,
+            "avg_points_week": 0,
+            "sessions_per_week": 0,
+            "forecast_week_points": 0,
+            "target_position": current_position,
+            "points_to_next_position": 0,
+            "points_per_session_goal": 0,
+            "summary": "Sin historial de sesiones. Necesitas registrar puntos para generar pronostico.",
+        }
+
+    week_totals = (
+        player_history
+        .groupby(player_history["timestamp"].dt.to_period("W"), as_index=False)["points_added"]
+        .sum()
+    )
+    avg_points_week = float(week_totals["points_added"].mean()) if not week_totals.empty else 0.0
+    best_week = int(week_totals["points_added"].max()) if not week_totals.empty else 0
+
+    now = pd.Timestamp.now()
+    last_7_points = int(player_history[player_history["timestamp"] >= (now - pd.Timedelta(days=7))]["points_added"].sum())
+    prev_7_points = int(
+        player_history[
+            (player_history["timestamp"] < (now - pd.Timedelta(days=7))) &
+            (player_history["timestamp"] >= (now - pd.Timedelta(days=14)))
+        ]["points_added"].sum()
+    )
+    sessions_last_28 = int((player_history["timestamp"] >= (now - pd.Timedelta(days=28))).sum())
+    sessions_per_week = sessions_last_28 / 4 if sessions_last_28 > 0 else max(1.0, len(player_history) / max(1, len(week_totals)))
+
+    recent_session_avg = float(player_history.tail(min(8, len(player_history)))["points_added"].mean())
+    trend_factor = 1.0
+    if last_7_points > prev_7_points:
+        trend_factor = 1.12
+    elif last_7_points < prev_7_points:
+        trend_factor = 0.95
+
+    projected_by_sessions = recent_session_avg * sessions_per_week * trend_factor
+    stretch_goal = best_week + 1 if best_week > 0 else projected_by_sessions
+    forecast_week_points = int(max(projected_by_sessions, stretch_goal, avg_points_week))
+
+    points_to_next_position = 0
+    if current_position and current_position > 1:
+        next_points = int(ranking.iloc[current_position - 2]["Points"])
+        points_to_next_position = max(0, (next_points - current_points) + 1)
+        forecast_week_points = max(forecast_week_points, points_to_next_position)
+
+    target_position = current_position
+    if current_position:
+        target_total = current_points + forecast_week_points
+        target_position = int((ranking["Points"] > target_total).sum() + 1)
+
+    session_goal_divisor = max(1, int(round(sessions_per_week)))
+    points_per_session_goal = int(math.ceil(forecast_week_points / session_goal_divisor)) if forecast_week_points > 0 else 0
+
+    summary = (
+        f"Pronostico semanal: {forecast_week_points} pts. "
+        f"Objetivo por sesion: {points_per_session_goal} pts."
+    )
+
+    return {
+        "current_points": current_points,
+        "current_position": current_position,
+        "avg_points_week": round(avg_points_week, 1),
+        "sessions_per_week": round(sessions_per_week, 1),
+        "forecast_week_points": forecast_week_points,
+        "target_position": target_position,
+        "points_to_next_position": points_to_next_position,
+        "points_per_session_goal": points_per_session_goal,
+        "summary": summary,
+    }
+
+
 # -----------------------------
 # SESSION STATE
 # -----------------------------
@@ -830,6 +1415,9 @@ if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
     st.session_state.role = None
     st.session_state.username = None
+
+if "lang" not in st.session_state:
+    st.session_state.lang = "es"
 
 
 # -----------------------------
@@ -978,12 +1566,13 @@ else:
 
                 with col_right:
                     st.markdown("<p class='section-title'>Automatizaciones</p>", unsafe_allow_html=True)
-                    if st.button("Assign Accounts to Scoreboard Players", use_container_width=True):
+                    st.caption("Only creates accounts for players without an existing account.")
+                    if st.button("Assign Accounts to New Players Only", use_container_width=True):
                         created_accounts = assign_accounts_to_scoreboard_players(default_player_password)
                         if created_accounts:
-                            st.success(f"Accounts created: {', '.join(created_accounts)}")
+                            st.success(f"New player accounts created: {', '.join(created_accounts)}")
                         else:
-                            st.info("All scoreboard players already have an account.")
+                            st.info("No new players found. All current players already have an account.")
 
                     render_scoreboard_background_uploader("admin_scoreboard_background_upload")
 
@@ -1085,41 +1674,48 @@ else:
 
             if st.session_state.username in df["Player"].values:
                 ranking = get_ranking(df)
-                player_data = ranking[ranking["Player"] == st.session_state.username]
-                points = int(player_data["Points"].values[0])
-                position = int(ranking[ranking["Player"] == st.session_state.username].index[0] + 1)
+                projection = compute_player_week_projection(st.session_state.username, ranking)
 
-                c1, c2, c3 = st.columns(3)
-                with c1:
-                    st.metric("Your Points", points)
-                with c2:
-                    st.metric("Your Position", f"#{position}")
-                with c3:
-                    status = "HOT 🔥" if position <= 3 else "COLD ❄️" if position > len(ranking) - 5 else "RUN 🏃"
-                    st.metric("Zone", status)
-
-                st.markdown("<p class='section-title'>Trend updates (tu jugador)</p>", unsafe_allow_html=True)
-                trend_feed = get_player_trend_feed(st.session_state.username, limit=6)
-                if trend_feed.empty:
-                    st.info("Todavia no hay actualizaciones de tendencia para este player.")
+                current_pos = projection["current_position"]
+                if current_pos and current_pos <= 3:
+                    zone_label = "HOT 🔥"
+                elif current_pos and current_pos > len(ranking) - 5:
+                    zone_label = "COLD ❄️"
                 else:
-                    latest_note = trend_feed.iloc[0]["trend_note"] if str(trend_feed.iloc[0]["trend_note"]).strip() else "Sin nota disponible."
-                    st.success(f"Ultima tendencia: {latest_note}")
-                    for _, event in trend_feed.iterrows():
-                        event_time = event["timestamp"].strftime("%b %d, %H:%M")
-                        note = event["trend_note"] if str(event["trend_note"]).strip() else "Sin nota de tendencia."
-                        st.markdown(
-                            f"""
-                            <div class="trend-note-card">
-                                <div class="trend-note-time">{html.escape(str(event_time))}</div>
-                                <p class="trend-note-text">{html.escape(str(note))}</p>
-                            </div>
-                            """,
-                            unsafe_allow_html=True,
-                        )
+                    zone_label = "RUN 🏃"
 
-                st.markdown("<p class='section-title'>Ranking general</p>", unsafe_allow_html=True)
-                render_dynamic_scoreboard(df)
+                c1, c2, c3, c4, c5 = st.columns(5)
+                with c1:
+                    st.metric("Your Points", projection["current_points"])
+                with c2:
+                    st.metric("Average Points / Week", projection["avg_points_week"])
+                with c3:
+                    target_label = f"#{projection['target_position']}" if projection["target_position"] else "-"
+                    st.metric("Weekly Target Position", target_label)
+                with c4:
+                    st.metric("Weekly Forecast (pts)", projection["forecast_week_points"])
+                with c5:
+                    st.metric("Zone", zone_label)
+
+                c6, c7, c8 = st.columns(3)
+                with c6:
+                    st.metric("Sessions / Week (est.)", projection["sessions_per_week"])
+                with c7:
+                    st.metric("Goal per Session (pts)", projection["points_per_session_goal"])
+                with c8:
+                    st.metric("Points to Next Position", projection["points_to_next_position"])
+
+                target_pos = projection["target_position"]
+                if current_pos and target_pos and target_pos < current_pos:
+                    st.success(
+                        f"Objetivo semanal: subir de #{current_pos} a #{target_pos}. {projection['summary']}"
+                    )
+                elif current_pos and target_pos:
+                    st.info(
+                        f"Objetivo semanal: consolidar la posicion #{current_pos} y presionar el siguiente lugar. {projection['summary']}"
+                    )
+                else:
+                    st.info(projection["summary"])
             else:
                 st.warning("No score assigned yet.")
 

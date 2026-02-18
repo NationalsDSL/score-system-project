@@ -148,7 +148,7 @@ TRANSLATIONS = {
         "trend_stable": "estable",
         "trend_up": "al alza",
         "trend_down": "a la baja",
-        "trend_note_text": "+{gain} pts. Total: {total}. Semana: {week} pts. Mes: {month} pts. Tendencia: {trend}.",
+        "trend_note_text": "{gain} pts. Total: {total}. Semana: {week} pts. Mes: {month} pts. Tendencia: {trend}.",
     },
     "en": {
         "language": "Language",
@@ -278,7 +278,7 @@ TRANSLATIONS = {
         "trend_stable": "stable",
         "trend_up": "upward",
         "trend_down": "downward",
-        "trend_note_text": "+{gain} pts. Total: {total}. Week: {week} pts. Month: {month} pts. Trend: {trend}.",
+        "trend_note_text": "{gain} pts. Total: {total}. Week: {week} pts. Month: {month} pts. Trend: {trend}.",
     },
 }
 
@@ -442,7 +442,7 @@ def build_trend_note_from_history(history, player_name):
 
     return tr(
         "trend_note_text",
-        gain=last_gain,
+        gain=f"{last_gain:+d}",
         total=total_after,
         week=week_points,
         month=month_points,
@@ -451,7 +451,7 @@ def build_trend_note_from_history(history, player_name):
 
 
 def log_points_update(player_name, points_added, total_after):
-    if points_added <= 0:
+    if points_added == 0:
         return ""
 
     history = load_history()
@@ -567,7 +567,7 @@ def get_clean_history():
     history["total_after"] = pd.to_numeric(history["total_after"], errors="coerce").fillna(0).astype(int)
     history["trend_note"] = history["trend_note"].fillna("").astype(str)
     history = history.dropna(subset=["timestamp"])
-    history = history[(history["player"] != "") & (history["points_added"] > 0)]
+    history = history[(history["player"] != "") & (history["points_added"] != 0)]
     return history
 
 
@@ -1499,8 +1499,11 @@ else:
 
                 with col_left:
                     st.markdown("<p class='section-title'>Fast Points Update</p>", unsafe_allow_html=True)
+                    df["Points"] = pd.to_numeric(df["Points"], errors="coerce").fillna(0).astype(int)
                     admin_ranking = get_ranking(df)
                     existing_players = admin_ranking["Player"].tolist()
+                    if "admin_points_delta" not in st.session_state:
+                        st.session_state["admin_points_delta"] = 5
 
                     target_type = st.radio(
                         "Target",
@@ -1509,57 +1512,102 @@ else:
                         key="admin_target_type",
                     )
 
-                    with st.form("fast_update_points_form"):
-                        if target_type == "Existing player" and existing_players:
-                            selected_player = st.selectbox("Select player", existing_players, key="admin_existing_player")
-                            player_input_value = selected_player
-                        else:
-                            if target_type == "Existing player":
-                                st.info("No hay players existentes. Crea uno nuevo.")
-                            player_input_value = st.text_input("New player name", key="admin_new_player_name")
+                    if target_type == "Existing player" and existing_players:
+                        selected_player = st.selectbox("Select player", existing_players, key="admin_existing_player")
+                        player_input_value = selected_player
+                    else:
+                        if target_type == "Existing player":
+                            st.info("No hay players existentes. Crea uno nuevo.")
+                        player_input_value = st.text_input("New player name", key="admin_new_player_name")
 
-                        quick_col, custom_col = st.columns(2)
-                        with quick_col:
-                            quick_points = st.select_slider(
-                                "Quick points",
-                                options=[1, 2, 3, 5, 8, 10, 15, 20, 30, 50],
-                                value=5,
-                                key="admin_quick_points",
-                            )
-                        with custom_col:
-                            custom_points = st.number_input(
-                                "Custom points (optional)",
-                                min_value=0,
-                                step=1,
-                                value=0,
-                                key="admin_custom_points",
-                            )
+                    st.caption("Quick delta")
+                    quick_delta_buttons = [
+                        (-10, "m10"),
+                        (-5, "m5"),
+                        (-1, "m1"),
+                        (1, "p1"),
+                        (5, "p5"),
+                        (10, "p10"),
+                    ]
+                    delta_cols = st.columns(len(quick_delta_buttons))
+                    for index, (delta_value, delta_key) in enumerate(quick_delta_buttons):
+                        if delta_cols[index].button(
+                            f"{delta_value:+d}",
+                            key=f"admin_delta_button_{delta_key}",
+                            use_container_width=True,
+                        ):
+                            next_delta = int(st.session_state.get("admin_points_delta", 0)) + delta_value
+                            st.session_state["admin_points_delta"] = max(-500, min(500, next_delta))
 
-                        points_to_add = int(custom_points) if int(custom_points) > 0 else int(quick_points)
-                        submitted = st.form_submit_button(f"Apply +{points_to_add} points", use_container_width=True)
+                    st.number_input(
+                        "Points movement (+ add / - subtract)",
+                        min_value=-500,
+                        max_value=500,
+                        step=1,
+                        key="admin_points_delta",
+                    )
+                    current_delta = int(st.session_state.get("admin_points_delta", 0))
+                    st.caption(f"Current movement: {current_delta:+d} pts")
+                    preview_player_name = (player_input_value or "").strip() or "este jugador"
+                    if current_delta > 0:
+                        st.warning(f"Alerta: vas a agregar {current_delta} puntos a {preview_player_name}.")
+                    elif current_delta < 0:
+                        st.warning(f"Alerta: vas a restar {abs(current_delta)} puntos a {preview_player_name}.")
+                    else:
+                        st.info(f"Alerta: movimiento en 0 puntos para {preview_player_name}.")
 
-                    if submitted:
+                    if st.button("Apply", key="admin_apply_points_delta", use_container_width=True):
                         clean_player_name = (player_input_value or "").strip()
                         if clean_player_name == "":
                             st.warning("Enter a player name.")
+                        elif current_delta == 0:
+                            st.warning("El movimiento no puede ser 0.")
                         else:
-                            if clean_player_name in df["Player"].values:
-                                df.loc[df["Player"] == clean_player_name, "Points"] += points_to_add
-                            else:
-                                new_row = pd.DataFrame([[clean_player_name, points_to_add]], columns=["Player", "Points"])
-                                df = pd.concat([df, new_row], ignore_index=True)
-                                create_player_account_if_missing(clean_player_name, default_player_password)
+                            normalized_target = normalize_identity(clean_player_name)
+                            player_series = df["Player"].astype(str).str.strip()
+                            match_indexes = df.index[player_series.map(normalize_identity) == normalized_target].tolist()
 
-                            total_after = int(
-                                pd.to_numeric(
-                                    df.loc[df["Player"] == clean_player_name, "Points"],
-                                    errors="coerce",
-                                ).fillna(0).iloc[0]
-                            )
-                            trend_note = log_points_update(clean_player_name, points_to_add, total_after)
-                            if save_scores(df):
-                                st.session_state["admin_last_update_message"] = f"{clean_player_name}: {trend_note}"
-                                st.rerun()
+                            if match_indexes:
+                                row_index = match_indexes[0]
+                                canonical_player_name = str(df.at[row_index, "Player"]).strip() or clean_player_name
+                                current_points = int(
+                                    pd.to_numeric(
+                                        pd.Series([df.at[row_index, "Points"]]),
+                                        errors="coerce",
+                                    ).fillna(0).iloc[0]
+                                )
+                                total_after = max(0, current_points + current_delta)
+                                applied_delta = total_after - current_points
+
+                                if applied_delta == 0:
+                                    st.warning(f"{canonical_player_name} ya tiene 0 puntos. No se puede restar mas.")
+                                else:
+                                    df.at[row_index, "Points"] = total_after
+                                    if save_scores(df):
+                                        trend_note = log_points_update(canonical_player_name, applied_delta, total_after)
+                                        update_message = f"{canonical_player_name}: {trend_note}" if trend_note else (
+                                            f"{canonical_player_name}: {applied_delta:+d} pts. Total: {total_after}."
+                                        )
+                                        if applied_delta != current_delta:
+                                            update_message = f"{update_message} (Ajustado para no bajar de 0.)"
+                                        st.session_state["admin_last_update_message"] = update_message
+                                        st.rerun()
+                            else:
+                                if current_delta < 0:
+                                    st.warning("Para crear un jugador nuevo, usa puntos positivos.")
+                                else:
+                                    total_after = current_delta
+                                    new_row = pd.DataFrame([[clean_player_name, total_after]], columns=["Player", "Points"])
+                                    df = pd.concat([df, new_row], ignore_index=True)
+                                    if save_scores(df):
+                                        create_player_account_if_missing(clean_player_name, default_player_password)
+                                        trend_note = log_points_update(clean_player_name, current_delta, total_after)
+                                        st.session_state["admin_last_update_message"] = (
+                                            f"{clean_player_name}: {trend_note}" if trend_note else (
+                                                f"{clean_player_name}: {current_delta:+d} pts. Total: {total_after}."
+                                            )
+                                        )
+                                        st.rerun()
 
                     if st.session_state.get("admin_last_update_message"):
                         st.success(st.session_state.pop("admin_last_update_message"))
